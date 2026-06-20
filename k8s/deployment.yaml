@@ -1,0 +1,226 @@
+# ============================================================
+# Super-HelloWorld — Kubernetes Deployment
+# ============================================================
+# 用法:
+#   kubectl apply -f k8s/
+#   kubectl get pods -l app=super-helloworld
+#   kubectl logs -f deployment/super-helloworld
+#   kubectl scale deployment/super-helloworld --replicas=5
+# ============================================================
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: super-helloworld
+  namespace: helloworld
+  labels:
+    app: super-helloworld
+    version: v1.0.0
+    tier: backend
+  annotations:
+    deployment.kubernetes.io/revision: "1"
+    prometheus.io/scrape: "true"
+    prometheus.io/port: "9090"
+    prometheus.io/path: "/metrics"
+spec:
+  replicas: 3
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  selector:
+    matchLabels:
+      app: super-helloworld
+  template:
+    metadata:
+      labels:
+        app: super-helloworld
+        version: v1.0.0
+      annotations:
+        checksum/config: "{{ include (print $.Template.BasePath \"/configmap.yaml\") . | sha256sum }}"
+    spec:
+      # Pod 反亲和性 — 分散到不同节点
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                labelSelector:
+                  matchExpressions:
+                    - key: app
+                      operator: In
+                      values:
+                        - super-helloworld
+                topologyKey: kubernetes.io/hostname
+
+      # 优雅终止
+      terminationGracePeriodSeconds: 30
+
+      # 安全上下文
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1001
+        runAsGroup: 1001
+        fsGroup: 1001
+
+      # Init container — 等待依赖
+      initContainers:
+        - name: wait-for-config
+          image: busybox:1.36
+          command:
+            - sh
+            - -c
+            - |
+              echo "Super-HelloWorld init container — verifying configuration..."
+              echo "ConfigMap mounted successfully"
+              echo "Ready to launch Hello World printer!"
+
+      containers:
+        - name: super-helloworld
+          image: super-helloworld:1.0.0
+          imagePullPolicy: IfNotPresent
+
+          envFrom:
+            - configMapRef:
+                name: super-helloworld-config
+            - secretRef:
+                name: super-helloworld-secrets
+                optional: true
+
+          env:
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: POD_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+            - name: NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+
+          ports:
+            - name: metrics
+              containerPort: 9090
+              protocol: TCP
+
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi
+
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 9090
+            initialDelaySeconds: 15
+            periodSeconds: 20
+            timeoutSeconds: 5
+            failureThreshold: 3
+
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: 9090
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 3
+
+          startupProbe:
+            httpGet:
+              path: /healthz
+              port: 9090
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            failureThreshold: 30
+
+          volumeMounts:
+            - name: config
+              mountPath: /app/config
+              readOnly: true
+            - name: logs
+              mountPath: /app/logs
+            - name: output
+              mountPath: /app/output
+
+          lifecycle:
+            preStop:
+              exec:
+                command:
+                  - python
+                  - -c
+                  - "from src.main import HelloWorldEngine; print('Draining...')"
+
+      volumes:
+        - name: config
+          configMap:
+            name: super-helloworld-config
+        - name: logs
+          emptyDir: {}
+        - name: output
+          emptyDir: {}
+
+---
+# ============================================================
+# PodDisruptionBudget — 保证最小可用副本
+# ============================================================
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: super-helloworld-pdb
+  namespace: helloworld
+spec:
+  minAvailable: 2
+  selector:
+    matchLabels:
+      app: super-helloworld
+
+---
+# ============================================================
+# HorizontalPodAutoscaler — 自动扩缩
+# ============================================================
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: super-helloworld-hpa
+  namespace: helloworld
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: super-helloworld
+  minReplicas: 3
+  maxReplicas: 10
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 60
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: Utilization
+          averageUtilization: 70
+  behavior:
+    scaleUp:
+      stabilizationWindowSeconds: 60
+      policies:
+        - type: Percent
+          value: 100
+          periodSeconds: 30
+    scaleDown:
+      stabilizationWindowSeconds: 300
+      policies:
+        - type: Pods
+          value: 1
+          periodSeconds: 60

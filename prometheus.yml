@@ -1,0 +1,32 @@
+# ============================================================
+# Super-HelloWorld — Prometheus 监控配置
+# ============================================================
+
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    cluster: "super-helloworld"
+    environment: "production"
+
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets: []
+
+rule_files: []
+
+scrape_configs:
+  - job_name: "super-helloworld"
+    metrics_path: /metrics
+    static_configs:
+      - targets:
+          - "super-helloworld:9090"
+        labels:
+          service: "hello-world-printer"
+          version: "1.0.0"
+
+  - job_name: "prometheus"
+    static_configs:
+      - targets:
+          - "localhost:9090"

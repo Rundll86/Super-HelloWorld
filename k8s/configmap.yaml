@@ -1,0 +1,50 @@
+# ============================================================
+# Super-HelloWorld — ConfigMap & Secret
+# ============================================================
+
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: super-helloworld-config
+  namespace: helloworld
+  labels:
+    app: super-helloworld
+data:
+  # 应用配置
+  LOG_LEVEL: "INFO"
+  RENDER_STYLE: "plain"
+  DEFAULT_ENCODING: "utf-8"
+  CLOUD_PROVIDER: "aws"
+  CLOUD_LOG_GROUP: "/super-helloworld/production"
+  CLOUD_REGION: "us-east-1"
+
+  # 安全监控
+  SECURITY_HIGH_FREQUENCY_THRESHOLD: "100"
+  SECURITY_RATE_WINDOW_SECONDS: "1.0"
+  SECURITY_MAX_PAYLOAD_SIZE: "65536"
+
+  # 缓冲区
+  BUFFER_MAX_SIZE: "65536"
+  BUFFER_DEFAULT_MODE: "fifo"
+
+  # 调度器
+  SCHEDULER_ENABLED: "true"
+  SCHEDULER_TIMEZONE: "UTC"
+
+  # IR 转译
+  IR_DEFAULT_TARGETS: "javascript,java,cpp,rust,wasm"
+
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: super-helloworld-secrets
+  namespace: helloworld
+  labels:
+    app: super-helloworld
+type: Opaque
+stringData:
+  # 注意: 生产环境中应使用外部 Secret 管理 (Vault / Sealed Secrets)
+  CLOUD_API_KEY: "your-cloud-api-key-here"
+  CLOUD_API_SECRET: "your-cloud-api-secret-here"
+  LOG_UPLOAD_TOKEN: "your-log-upload-token-here"

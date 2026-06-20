@@ -1,0 +1,14 @@
+# Super-HelloWorld — Production Dependencies
+# 企业级 Hello World 打印基础设施
+
+# Core (stdlib only — no external deps for core printing)
+# Python >= 3.10 required
+
+# Structured Logging (optional but recommended)
+structlog>=23.1.0
+
+# CLI Enhancement (optional)
+colorama>=0.4.6
+
+# Monitoring (optional)
+prometheus-client>=0.19.0

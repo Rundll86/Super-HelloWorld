@@ -1,0 +1,47 @@
+# ============================================================
+# Super-HelloWorld — Kubernetes Service
+# ============================================================
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: super-helloworld
+  namespace: helloworld
+  labels:
+    app: super-helloworld
+  annotations:
+    service.kubernetes.io/topology-mode: auto
+spec:
+  type: ClusterIP
+  selector:
+    app: super-helloworld
+  ports:
+    - name: metrics
+      port: 9090
+      targetPort: 9090
+      protocol: TCP
+  sessionAffinity: None
+
+---
+# ============================================================
+# ServiceMonitor (Prometheus Operator)
+# ============================================================
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: super-helloworld-monitor
+  namespace: helloworld
+  labels:
+    release: prometheus
+    app: super-helloworld
+spec:
+  selector:
+    matchLabels:
+      app: super-helloworld
+  endpoints:
+    - port: metrics
+      interval: 15s
+      path: /metrics
+  namespaceSelector:
+    matchNames:
+      - helloworld

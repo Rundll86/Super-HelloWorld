@@ -1,0 +1,75 @@
+# ============================================================
+# Super-HelloWorld — .gitignore
+# ============================================================
+
+# ---- Python ----
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg-info/
+*.egg
+dist/
+build/
+eggs/
+*.whl
+.eggs/
+pip-wheel-metadata/
+
+# ---- Virtual Environments ----
+.venv/
+venv/
+env/
+ENV/
+env.bak/
+venv.bak/
+
+# ---- IDE & Editor ----
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# ---- Testing & Coverage ----
+htmlcov/
+.coverage
+.coverage.*
+coverage.xml
+*.cover
+.pytest_cache/
+.tox/
+.nox/
+
+# ---- Linting & Type Checking ----
+.mypy_cache/
+.ruff_cache/
+.dmypy.json
+dmypy.json
+
+# ---- Environment & Secrets ----
+.env
+.env.local
+.env.*.local
+*.pem
+*.key
+credentials.json
+
+# ---- Docker ----
+docker-compose.override.yml
+
+# ---- Logs ----
+*.log
+logs/
+
+# ---- Output ----
+output/
+
+# ---- Jupyter ----
+.ipynb_checkpoints/
+
+# ---- Packaging ----
+*.egg
+*.egg-info/

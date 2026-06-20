@@ -1,0 +1,158 @@
+# ============================================================
+# Super-HelloWorld — Docker Compose 部署配置
+# ============================================================
+# 用法:
+#   docker compose up -d              # 启动所有服务
+#   docker compose logs -f            # 查看日志
+#   docker compose down               # 停止并清理
+#   docker compose run cli print --style colored  # 运行 CLI
+# ============================================================
+
+version: "3.9"
+
+services:
+  # ---- 主应用 ----
+  super-helloworld:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: production
+    image: super-helloworld:latest
+    container_name: super-helloworld-app
+    restart: unless-stopped
+    environment:
+      - LOG_LEVEL=INFO
+      - CLOUD_PROVIDER=aws
+      - CLOUD_LOG_GROUP=/super-helloworld/docker
+      - RENDER_STYLE=plain
+      - TZ=UTC
+    volumes:
+      - helloworld-logs:/app/logs
+      - helloworld-output:/app/output
+    ports:
+      - "9090:9090"  # Metrics
+    networks:
+      - helloworld-net
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 256M
+        reservations:
+          cpus: "0.1"
+          memory: 64M
+    labels:
+      - "com.super-helloworld.service=core"
+      - "com.super-helloworld.version=1.0.0"
+
+  # ---- 定时调度器 ----
+  scheduler:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: production
+    image: super-helloworld:latest
+    container_name: super-helloworld-scheduler
+    restart: unless-stopped
+    command: >
+      python -c "
+      import time
+      from src.core.processing_layer.scheduler import CronScheduler
+      from src.core.adapter_layer.buffer_stack import BufferStack
+      from src.core.adapter_layer.protocol_adapter import ProtocolAdapter
+      from src.core.processing_layer.renderer import Renderer
+      from src.core.processing_layer.output_stream import OutputStream
+      from src.core.device_layer.device_manager import DeviceManager, DeviceType
+
+      dm = DeviceManager.get_instance()
+      console = dm.create_device(DeviceType.CONSOLE)
+      dm.register(console)
+      dm.activate(console.device_id)
+
+      buf = BufferStack()
+      adapter = ProtocolAdapter()
+      adapter.negotiate(console)
+      stream = OutputStream(buffer=buf, protocol_adapter=adapter)
+      stream.subscribe_device(console)
+
+      renderer = Renderer()
+      scheduler = CronScheduler()
+      scheduler.add_hello_world_job('hourly', '0 * * * *', renderer, stream)
+      scheduler.add_hello_world_job('daily', '0 0 * * *', renderer, stream)
+      scheduler.start()
+      print('Scheduler running. Press Ctrl+C to stop.')
+      try:
+          while True:
+              time.sleep(60)
+      except KeyboardInterrupt:
+          scheduler.stop()
+      "
+    depends_on:
+      super-helloworld:
+        condition: service_healthy
+    environment:
+      - TZ=UTC
+    networks:
+      - helloworld-net
+
+  # ---- Prometheus (可选监控) ----
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: super-helloworld-prometheus
+    restart: unless-stopped
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+    ports:
+      - "9091:9090"
+    networks:
+      - helloworld-net
+    profiles:
+      - monitoring
+
+  # ---- Grafana (可选可视化) ----
+  grafana:
+    image: grafana/grafana:latest
+    container_name: super-helloworld-grafana
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    volumes:
+      - grafana-data:/var/lib/grafana
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+    networks:
+      - helloworld-net
+    profiles:
+      - monitoring
+
+  # ---- CLI 工具 ----
+  cli:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: super-helloworld:latest
+    container_name: super-helloworld-cli
+    entrypoint: ["python", "-m", "src.cli"]
+    profiles:
+      - cli
+    networks:
+      - helloworld-net
+
+networks:
+  helloworld-net:
+    driver: bridge
+    name: helloworld-net
+
+volumes:
+  helloworld-logs:
+    name: helloworld-logs
+  helloworld-output:
+    name: helloworld-output
+  prometheus-data:
+    name: helloworld-prometheus-data
+  grafana-data:
+    name: helloworld-grafana-data
