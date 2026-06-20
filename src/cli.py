@@ -267,15 +267,15 @@ def _cmd_print(args: argparse.Namespace) -> dict | None:
 
     message = args.message
     style = RenderStyle(args.style)
-    encoding = CharacterSet(args.encoding.upper().replace("-", ""))
+    encoding = CharacterSet(args.encoding.lower())
     device_type = DeviceType[args.device.upper()]
 
     # 1. 设备层: 注册设备
     dm = DeviceManager.get_instance()
-    device = dm.create_device(
-        device_type,
-        file_path=args.output_file or "/tmp/hello.log",  # nosec B108 — CLI default path
-    )
+    device_kwargs: dict[str, object] = {}
+    if device_type == DeviceType.FILE:
+        device_kwargs["file_path"] = args.output_file or "/tmp/hello.log"  # nosec B108
+    device = dm.create_device(device_type, **device_kwargs)
     dm.register(device)
     dm.activate(device.device_id)
 

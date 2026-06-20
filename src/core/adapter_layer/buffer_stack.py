@@ -73,7 +73,7 @@ class BufferStack:
         self._deque: deque[str] = deque(maxlen=max_size)
         self._max_size: int = max_size
         self._mode: BufferMode = mode
-        self._lock: threading.Lock = threading.Lock()
+        self._lock: threading.RLock = threading.RLock()
         self._total_pushed: int = 0
         self._total_popped: int = 0
 
@@ -166,8 +166,7 @@ class BufferStack:
         with self._lock:
             if self.size + len(chars) > self._max_size:
                 raise BufferOverflowError(
-                    f"Cannot push {len(chars)} chars: "
-                    f"{self.size}/{self._max_size} used",
+                    f"Cannot push {len(chars)} chars: {self.size}/{self._max_size} used",
                     error_code="BUFFER_OVERFLOW",
                 )
             self._deque.extend(chars)

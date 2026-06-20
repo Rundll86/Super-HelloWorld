@@ -76,7 +76,7 @@ class FileDevice(AbstractDevice):
         """
         if self._handle is None or getattr(self._handle, "closed", True):
             self._open()
-assert self._handle is not None  # nosec B101 — mypy type narrowing
+        assert self._handle is not None  # nosec B101 — mypy type narrowing
 
         start = time.perf_counter()
         line = data + os.linesep
@@ -102,6 +102,13 @@ assert self._handle is not None  # nosec B101 — mypy type narrowing
         if self._handle and not getattr(self._handle, "closed", True):
             self._handle.close()
             self._handle = None
+
+    def __del__(self) -> None:
+        """析构时自动关闭文件句柄."""
+        try:
+            self.close()
+        except Exception:
+            pass  # 析构函数中静默所有异常
 
     @property
     def device_id(self) -> str:

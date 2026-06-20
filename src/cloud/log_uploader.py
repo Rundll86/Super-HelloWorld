@@ -114,7 +114,7 @@ class LogUploader:
         self._batch_size: int = batch_size
         self._flush_interval: float = flush_interval
         self._queue: queue.Queue[LogEntry] = queue.Queue()
-        self._running: bool = False
+        self._running: threading.Event = threading.Event()
         self._thread: threading.Thread | None = None
         self._uploaded: int = 0
         self._failed: int = 0
@@ -124,9 +124,9 @@ class LogUploader:
 
     def start(self) -> None:
         """启动上传器 (后台线程)."""
-        if self._running:
+        if self._running.is_set():
             return
-        self._running = True
+        self._running.set()
         self._thread = threading.Thread(
             target=self._upload_loop,
             name="log-uploader",
@@ -134,13 +134,13 @@ class LogUploader:
         )
         self._thread.start()
 
-    def stop(self, timeout: float = 10.0) -> None:
+    def stop(self, timeout: float = 5.0) -> None:
         """停止上传器.
 
         Args:
             timeout: 等待超时 (秒).
         """
-        self._running = False
+        self._running.clear()
         if self._thread and self._thread.is_alive():
             self._thread.join(timeout=timeout)
 
@@ -230,10 +230,10 @@ class LogUploader:
         buffer: list[LogEntry] = []
         last_flush = time.time()
 
-        while self._running:
+        while self._running.is_set():
             try:
-                # 从队列获取日志
-                entry = self._queue.get(timeout=1.0)
+                # 从队列获取日志 (短超时，快速响应停止信号)
+                entry = self._queue.get(timeout=0.3)
                 buffer.append(entry)
             except queue.Empty:
                 pass
@@ -247,7 +247,17 @@ class LogUploader:
                 buffer.clear()
                 last_flush = now
 
-        # 停止前最后一次刷新
+        # 停止前最后一次刷新 — 排空队列剩余
+        self._drain_queue(buffer)
+
+    def _drain_queue(self, buffer: list[LogEntry]) -> None:
+        """排空队列中剩余日志."""
+        while True:
+            try:
+                entry = self._queue.get_nowait()
+                buffer.append(entry)
+            except queue.Empty:
+                break
         if buffer:
             self._flush(buffer)
 
@@ -279,7 +289,7 @@ class LogUploader:
             "uploaded": self._uploaded,
             "failed": self._failed,
             "queued": self._queue.qsize(),
-            "running": self._running,
+            "running": self._running.is_set(),
         }
 
     @property
@@ -290,7 +300,7 @@ class LogUploader:
     @property
     def running(self) -> bool:
         """是否运行中."""
-        return self._running
+        return self._running.is_set()
 
     def __repr__(self) -> str:
         return (
