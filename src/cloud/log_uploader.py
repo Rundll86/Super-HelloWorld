@@ -18,7 +18,7 @@ import time
 import uuid
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any
 
 
 class CloudProvider(Enum):
@@ -52,9 +52,9 @@ class LogEntry:
     module: str = "unknown"
     action: str = "hello_world_print"
     result: str = "success"
-    extra: Dict[str, Any] = field(default_factory=dict)
+    extra: dict[str, Any] = field(default_factory=dict)
 
-    def to_structured(self) -> Dict[str, Any]:
+    def to_structured(self) -> dict[str, Any]:
         """转为结构化字典."""
         return {
             "message": self.message,
@@ -115,7 +115,7 @@ class LogUploader:
         self._flush_interval: float = flush_interval
         self._queue: queue.Queue[LogEntry] = queue.Queue()
         self._running: bool = False
-        self._thread: Optional[threading.Thread] = None
+        self._thread: threading.Thread | None = None
         self._uploaded: int = 0
         self._failed: int = 0
         self._lock: threading.Lock = threading.Lock()
@@ -227,7 +227,7 @@ class LogUploader:
 
     def _upload_loop(self) -> None:
         """后台上传循环."""
-        buffer: List[LogEntry] = []
+        buffer: list[LogEntry] = []
         last_flush = time.time()
 
         while self._running:
@@ -251,29 +251,27 @@ class LogUploader:
         if buffer:
             self._flush(buffer)
 
-    def _flush(self, entries: List[LogEntry]) -> None:
+    def _flush(self, entries: list[LogEntry]) -> None:
         """批量上传日志 (模拟)."""
         if not entries:
             return
         try:
             # 模拟云端上传
             payload = [e.to_structured() for e in entries]
-            serialized = json.dumps(payload, ensure_ascii=False)
+            _ = json.dumps(payload, ensure_ascii=False)
             # 实际生产中: upload_to_cloud(serialized)
             with self._lock:
                 self._uploaded += len(entries)
-        except Exception:
+        except Exception as err:
             with self._lock:
                 self._failed += len(entries)
             raise CloudUploadError(
                 f"Failed to upload {len(entries)} log entries",
                 error_code="UPLOAD_FAILED",
-            )
-
-    # ---- 查询 ----
+            ) from err
 
     @property
-    def stats(self) -> Dict[str, Any]:
+    def stats(self) -> dict[str, Any]:
         """上传统计."""
         return {
             "provider": self._provider.value,

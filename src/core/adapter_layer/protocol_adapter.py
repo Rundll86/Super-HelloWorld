@@ -13,7 +13,6 @@ import json
 import time
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, Dict, List, Optional
 
 from src.core.adapter_layer.buffer_stack import BufferStack
 from src.core.adapter_layer.stream_adapter import Encoding, StreamAdapter
@@ -38,7 +37,7 @@ class DeviceCommand:
     payload: str
     protocol_version: ProtocolVersion = ProtocolVersion.V2_0
     encoding: Encoding = Encoding.UTF8
-    metadata: Dict[str, str] = field(default_factory=dict)
+    metadata: dict[str, str] = field(default_factory=dict)
     timestamp: float = field(default_factory=time.time)
 
     def to_json(self) -> str:
@@ -86,8 +85,8 @@ class ProtocolAdapter:
         """
         self._protocol_version: ProtocolVersion = protocol_version
         self._stream_adapter: StreamAdapter = StreamAdapter()
-        self._negotiations: Dict[str, CapabilityNegotiation] = {}
-        self._command_history: List[DeviceCommand] = []
+        self._negotiations: dict[str, CapabilityNegotiation] = {}
+        self._command_history: list[DeviceCommand] = []
 
     # ---- 能力协商 ----
 
@@ -198,7 +197,7 @@ class ProtocolAdapter:
         else:
             raise ValueError(f"Unknown command type: {command.command_type}")
 
-    def broadcast(self, payload: str, devices: List[AbstractDevice]) -> Dict[str, int]:
+    def broadcast(self, payload: str, devices: list[AbstractDevice]) -> dict[str, int]:
         """向多个设备广播同一命令.
 
         Args:
@@ -208,7 +207,7 @@ class ProtocolAdapter:
         Returns:
             {device_id: bytes_written} 映射.
         """
-        results: Dict[str, int] = {}
+        results: dict[str, int] = {}
         for device in devices:
             if device.device_id not in self._negotiations:
                 self.negotiate(device)
@@ -252,7 +251,7 @@ class ProtocolAdapter:
         """已发出的命令总数."""
         return len(self._command_history)
 
-    def get_negotiation(self, device_id: str) -> Optional[CapabilityNegotiation]:
+    def get_negotiation(self, device_id: str) -> CapabilityNegotiation | None:
         """获取设备的协商结果."""
         return self._negotiations.get(device_id)
 

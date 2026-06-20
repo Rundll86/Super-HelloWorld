@@ -14,8 +14,8 @@ from __future__ import annotations
 import threading
 import time
 from collections import deque
+from collections.abc import Iterator
 from enum import Enum
-from typing import Deque, Iterator, List, Optional
 
 
 class BufferError(Exception):
@@ -70,7 +70,7 @@ class BufferStack:
             max_size: 最大容量.
             mode: 操作模式 (LIFO/FIFO).
         """
-        self._deque: Deque[str] = deque(maxlen=max_size)
+        self._deque: deque[str] = deque(maxlen=max_size)
         self._max_size: int = max_size
         self._mode: BufferMode = mode
         self._lock: threading.Lock = threading.Lock()
@@ -154,7 +154,7 @@ class BufferStack:
             self._deque.append(char)
             self._total_pushed += 1
 
-    def push_all(self, chars: List[str]) -> None:
+    def push_all(self, chars: list[str]) -> None:
         """推入多个字符.
 
         Args:
@@ -196,7 +196,7 @@ class BufferStack:
             else:
                 return self._deque.popleft()
 
-    def pop_all(self, count: int = -1) -> List[str]:
+    def pop_all(self, count: int = -1) -> list[str]:
         """弹出多个字符.
 
         Args:
@@ -220,7 +220,7 @@ class BufferStack:
             self._total_popped += len(chars)
             return chars
 
-    def peek(self, count: int = 1) -> List[str]:
+    def peek(self, count: int = 1) -> list[str]:
         """查看字符但不弹出.
 
         Args:
@@ -235,7 +235,7 @@ class BufferStack:
                 items.reverse()
             return items[:count]
 
-    def peek_all(self) -> List[str]:
+    def peek_all(self) -> list[str]:
         """查看所有字符但不弹出."""
         with self._lock:
             items = list(self._deque)
@@ -250,7 +250,7 @@ class BufferStack:
         with self._lock:
             self._deque.clear()
 
-    def drain(self) -> List[str]:
+    def drain(self) -> list[str]:
         """排空缓冲区并返回所有字符."""
         return self.pop_all(-1)
 

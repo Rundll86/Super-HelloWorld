@@ -22,7 +22,6 @@ import argparse
 import json
 import sys
 from dataclasses import dataclass
-from typing import Optional
 
 
 @dataclass
@@ -31,7 +30,7 @@ class CLIConfig:
 
     verbose: bool = False
     output_format: str = "text"  # text / json / yaml
-    config_file: Optional[str] = None
+    config_file: str | None = None
 
 
 def _create_parser() -> argparse.ArgumentParser:
@@ -42,7 +41,8 @@ def _create_parser() -> argparse.ArgumentParser:
         epilog="Built with 200% over-engineering by Enterprise Architecture Team.",
     )
     parser.add_argument(
-        "-v", "--verbose",
+        "-v",
+        "--verbose",
         action="store_true",
         help="Enable verbose output",
     )
@@ -63,23 +63,27 @@ def _create_parser() -> argparse.ArgumentParser:
     # ---- print ----
     print_parser = subparsers.add_parser("print", help="Print Hello World")
     print_parser.add_argument(
-        "--message", "-m",
+        "--message",
+        "-m",
         default="Hello World",
         help="Custom message to print",
     )
     print_parser.add_argument(
-        "--style", "-s",
+        "--style",
+        "-s",
         choices=["plain", "colored", "rich", "minimal", "json", "xml"],
         default="plain",
         help="Render style (default: plain)",
     )
     print_parser.add_argument(
-        "--device", "-d",
+        "--device",
+        "-d",
         default="console",
         help="Target device type (console/file/network/cloud)",
     )
     print_parser.add_argument(
-        "--output-file", "-o",
+        "--output-file",
+        "-o",
         default=None,
         help="Output file path (for file device)",
     )
@@ -89,7 +93,8 @@ def _create_parser() -> argparse.ArgumentParser:
         help="Character encoding (utf-8/ascii/gbk/utf-16)",
     )
     print_parser.add_argument(
-        "--repeat", "-n",
+        "--repeat",
+        "-n",
         type=int,
         default=1,
         help="Number of times to print",
@@ -124,12 +129,23 @@ def _create_parser() -> argparse.ArgumentParser:
 
     dev_sub.add_parser("list", help="List registered devices")
     dev_register = dev_sub.add_parser("register", help="Register a device")
-    dev_register.add_argument("--type", "-t", required=True, choices=["console", "file", "network", "cloud"], help="Device type")
+    dev_register.add_argument(
+        "--type",
+        "-t",
+        required=True,
+        choices=["console", "file", "network", "cloud"],
+        help="Device type",
+    )
     dev_register.add_argument("--id", required=True, help="Device ID")
     dev_register.add_argument("--path", default=None, help="File path (file device)")
     dev_register.add_argument("--host", default="localhost", help="Host (network device)")
     dev_register.add_argument("--port", type=int, default=9999, help="Port (network device)")
-    dev_register.add_argument("--provider", default="aws", choices=["aws", "gcp", "azure", "aliyun"], help="Cloud provider")
+    dev_register.add_argument(
+        "--provider",
+        default="aws",
+        choices=["aws", "gcp", "azure", "aliyun"],
+        help="Cloud provider",
+    )
 
     dev_remove = dev_sub.add_parser("remove", help="Remove a device")
     dev_remove.add_argument("--id", required=True, help="Device ID")
@@ -144,7 +160,13 @@ def _create_parser() -> argparse.ArgumentParser:
     ir_sub = ir_parser.add_subparsers(dest="ir_action")
 
     ir_transpile = ir_sub.add_parser("transpile", help="Transpile Hello World to target language")
-    ir_transpile.add_argument("--target", "-t", choices=["javascript", "java", "cpp", "rust", "wasm"], required=True, help="Target language")
+    ir_transpile.add_argument(
+        "--target",
+        "-t",
+        choices=["javascript", "java", "cpp", "rust", "wasm"],
+        required=True,
+        help="Target language",
+    )
     ir_transpile.add_argument("--message", "-m", default="Hello World", help="Custom message")
 
     ir_sub.add_parser("all", help="Transpile to all supported languages")
@@ -172,7 +194,7 @@ def _create_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def run_cli(args: Optional[list[str]] = None) -> int:
+def run_cli(args: list[str] | None = None) -> int:
     """运行 CLI — 主入口.
 
     Args:
@@ -230,17 +252,18 @@ def _dispatch(args: argparse.Namespace) -> int:
 # 命令处理函数
 # ============================================================
 
+
 def _cmd_print(args: argparse.Namespace) -> dict | None:
     """处理 print 命令."""
-    from src.core.device_layer.character_reader import CharacterReader, CharacterSet
-    from src.core.device_layer.device_manager import DeviceManager, DeviceType
+    from src.cloud.log_uploader import LogUploader
     from src.core.adapter_layer.buffer_stack import BufferStack
-    from src.core.adapter_layer.stream_adapter import Encoding, StreamAdapter
     from src.core.adapter_layer.protocol_adapter import ProtocolAdapter
-    from src.core.processing_layer.renderer import Renderer, RenderStyle
+    from src.core.device_layer.character_reader import CharacterReader, CharacterSet
+    from src.core.device_layer.device_interface import DeviceType
+    from src.core.device_layer.device_manager import DeviceManager
     from src.core.processing_layer.output_stream import OutputStream
+    from src.core.processing_layer.renderer import Renderer, RenderStyle
     from src.core.processing_layer.security_monitor import SecurityMonitor
-    from src.cloud.log_uploader import LogUploader, CloudProvider
 
     message = args.message
     style = RenderStyle(args.style)
@@ -251,7 +274,7 @@ def _cmd_print(args: argparse.Namespace) -> dict | None:
     dm = DeviceManager.get_instance()
     device = dm.create_device(
         device_type,
-        file_path=args.output_file or "/tmp/hello.log",
+        file_path=args.output_file or "/tmp/hello.log",  # nosec B108 — CLI default path
     )
     dm.register(device)
     dm.activate(device.device_id)
@@ -305,18 +328,18 @@ def _cmd_print(args: argparse.Namespace) -> dict | None:
 
 def _cmd_cron(args: argparse.Namespace) -> dict | None:
     """处理 cron 命令."""
-    from src.core.processing_layer.scheduler import CronScheduler
-    from src.core.processing_layer.renderer import Renderer, RenderStyle
-    from src.core.device_layer.device_manager import DeviceManager
     from src.core.adapter_layer.buffer_stack import BufferStack
     from src.core.adapter_layer.protocol_adapter import ProtocolAdapter
+    from src.core.device_layer.device_manager import DeviceManager
     from src.core.processing_layer.output_stream import OutputStream
+    from src.core.processing_layer.renderer import Renderer, RenderStyle
+    from src.core.processing_layer.scheduler import CronScheduler
 
     scheduler = CronScheduler()
     action = args.cron_action
 
     if action == "add":
-        dm = DeviceManager.get_instance()
+        _ = DeviceManager.get_instance()
         buffer = BufferStack()
         adapter = ProtocolAdapter()
         stream = OutputStream(buffer=buffer, protocol_adapter=adapter)
@@ -331,7 +354,17 @@ def _cmd_cron(args: argparse.Namespace) -> dict | None:
 
     elif action == "list":
         jobs = scheduler.list_jobs()
-        return {"jobs": [{"id": j.job_id, "cron": j.cron_expression, "enabled": j.enabled, "runs": j.run_count} for j in jobs]}
+        return {
+            "jobs": [
+                {
+                    "id": j.job_id,
+                    "cron": j.cron_expression,
+                    "enabled": j.enabled,
+                    "runs": j.run_count,
+                }
+                for j in jobs
+            ]
+        }
 
     elif action == "start":
         scheduler.start()
@@ -361,7 +394,8 @@ def _cmd_cron(args: argparse.Namespace) -> dict | None:
 
 def _cmd_device(args: argparse.Namespace) -> dict | None:
     """处理 device 命令."""
-    from src.core.device_layer.device_manager import DeviceManager, DeviceType
+    from src.core.device_layer.device_interface import DeviceType
+    from src.core.device_layer.device_manager import DeviceManager
 
     dm = DeviceManager.get_instance()
     action = args.device_action
@@ -390,6 +424,7 @@ def _cmd_device(args: argparse.Namespace) -> dict | None:
             kwargs["port"] = args.port
         elif args.type == "cloud":
             from src.core.device_layer.devices.cloud_device import CloudProvider
+
             kwargs["provider"] = CloudProvider(args.provider)
 
         device = dm.create_device(device_type, **kwargs)
@@ -519,6 +554,7 @@ def _cmd_cloud(args: argparse.Namespace) -> dict | None:
 # ============================================================
 # 工具函数
 # ============================================================
+
 
 def _print_dict(data: dict, indent: int = 0) -> None:
     """递归打印字典."""

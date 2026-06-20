@@ -28,19 +28,18 @@ from __future__ import annotations
 import logging
 import sys
 import time
-from typing import Optional
 
+from src.cloud.log_uploader import CloudProvider, LogLevel, LogUploader
+from src.core.adapter_layer.buffer_stack import BufferMode, BufferStack
+from src.core.adapter_layer.protocol_adapter import ProtocolAdapter
+from src.core.adapter_layer.stream_adapter import StreamAdapter
 from src.core.device_layer.character_reader import CharacterReader, CharacterSet
 from src.core.device_layer.device_interface import DeviceType
 from src.core.device_layer.device_manager import DeviceManager
-from src.core.adapter_layer.buffer_stack import BufferStack, BufferMode
-from src.core.adapter_layer.stream_adapter import Encoding, StreamAdapter
-from src.core.adapter_layer.protocol_adapter import ProtocolAdapter
-from src.core.processing_layer.renderer import Renderer, RenderStyle, ANSIColor
-from src.core.processing_layer.output_stream import OutputStream
-from src.core.processing_layer.security_monitor import SecurityMonitor
 from src.core.processing_layer.ir_transpiler import IRTranspiler, TargetLanguage
-from src.cloud.log_uploader import LogUploader, CloudProvider, LogLevel
+from src.core.processing_layer.output_stream import OutputStream
+from src.core.processing_layer.renderer import Renderer, RenderStyle
+from src.core.processing_layer.security_monitor import SecurityMonitor
 
 # 结构化日志配置
 logging.basicConfig(
@@ -142,7 +141,7 @@ class HelloWorldEngine:
 
     def print_hello_world(
         self,
-        style: Optional[RenderStyle] = None,
+        style: RenderStyle | None = None,
         encoding: CharacterSet = CharacterSet.UTF8,
     ) -> str:
         """执行完整的 Hello World 打印流水线.
@@ -214,7 +213,7 @@ class HelloWorldEngine:
     def print_custom(
         self,
         message: str,
-        style: Optional[RenderStyle] = None,
+        style: RenderStyle | None = None,
     ) -> str:
         """打印自定义消息.
 
@@ -375,12 +374,12 @@ def main() -> int:
 
         # ---- 云端日志 ----
         upload_stats = engine.log_uploader.stats
-        print(f"\n[5] Cloud Log Uploader:")
+        print("\n[5] Cloud Log Uploader:")
         print(f"    Uploaded: {upload_stats['uploaded']}")
         print(f"    Failed: {upload_stats['failed']}")
 
         # ---- 引擎统计 ----
-        print(f"\n[6] Engine Stats:")
+        print("\n[6] Engine Stats:")
         for k, v in engine.stats.items():
             print(f"    {k}: {v}")
 

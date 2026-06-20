@@ -3,7 +3,6 @@
 from src.core.processing_layer.ir_transpiler import (
     AbstractTranspiler,
     IROutput,
-    IRNode,
     TargetLanguage,
 )
 

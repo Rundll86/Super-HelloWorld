@@ -11,21 +11,22 @@
 
 from __future__ import annotations
 
+import contextlib
 import threading
 import time
-import uuid
 from collections import OrderedDict
-from typing import Callable, Dict, List, Optional, Type
+from collections.abc import Callable
+from typing import Any
 
 from src.core.device_layer.device_interface import (
     AbstractDevice,
     DeviceStatus,
     DeviceType,
 )
+from src.core.device_layer.devices.cloud_device import CloudDevice
 from src.core.device_layer.devices.console_device import ConsoleDevice
 from src.core.device_layer.devices.file_device import FileDevice
 from src.core.device_layer.devices.network_device import NetworkDevice
-from src.core.device_layer.devices.cloud_device import CloudDevice
 
 
 class DeviceError(Exception):
@@ -64,12 +65,12 @@ class DeviceManager:
         >>> dm.write_all("Hello World")
     """
 
-    _instance: Optional["DeviceManager"] = None
+    _instance: DeviceManager | None = None
     _lock: threading.Lock = threading.Lock()
     _rlock: threading.RLock = threading.RLock()
 
     # 设备工厂注册表: DeviceType → DeviceClass
-    _factory_registry: Dict[DeviceType, Type[AbstractDevice]] = {
+    _factory_registry: dict[DeviceType, type[AbstractDevice]] = {
         DeviceType.CONSOLE: ConsoleDevice,
         DeviceType.FILE: FileDevice,
         DeviceType.NETWORK: NetworkDevice,
@@ -80,12 +81,12 @@ class DeviceManager:
         """私有构造 — 请使用 get_instance()."""
         if not hasattr(self, "_initialized"):
             self._registry: OrderedDict[str, AbstractDevice] = OrderedDict()
-            self._callbacks: List[DeviceCallback] = []
-            self._default_device_id: Optional[str] = None
+            self._callbacks: list[DeviceCallback] = []
+            self._default_device_id: str | None = None
             self._initialized: bool = True
 
     @classmethod
-    def get_instance(cls) -> "DeviceManager":
+    def get_instance(cls) -> DeviceManager:
         """获取 DeviceManager 单例."""
         if cls._instance is None:
             with cls._lock:
@@ -103,7 +104,7 @@ class DeviceManager:
     def register_device_factory(
         cls,
         device_type: DeviceType,
-        factory: Type[AbstractDevice],
+        factory: type[AbstractDevice],
     ) -> None:
         """注册自定义设备工厂.
 
@@ -118,7 +119,7 @@ class DeviceManager:
     def create_device(
         self,
         device_type: DeviceType,
-        **kwargs: object,
+        **kwargs: Any,
     ) -> AbstractDevice:
         """工厂方法 — 创建设备实例.
 
@@ -226,15 +227,12 @@ class DeviceManager:
         with self._rlock:
             return self._get_or_raise(device_id)
 
-    def get_active_devices(self) -> List[AbstractDevice]:
+    def get_active_devices(self) -> list[AbstractDevice]:
         """获取所有活跃设备."""
         with self._rlock:
-            return [
-                d for d in self._registry.values()
-                if d.status == DeviceStatus.ACTIVE
-            ]
+            return [d for d in self._registry.values() if d.status == DeviceStatus.ACTIVE]
 
-    def get_default_device(self) -> Optional[AbstractDevice]:
+    def get_default_device(self) -> AbstractDevice | None:
         """获取默认设备."""
         with self._rlock:
             if self._default_device_id:
@@ -247,14 +245,14 @@ class DeviceManager:
             self._get_or_raise(device_id)
             self._default_device_id = device_id
 
-    def list_devices(self) -> List[AbstractDevice]:
+    def list_devices(self) -> list[AbstractDevice]:
         """列出所有已注册设备."""
         with self._rlock:
             return list(self._registry.values())
 
     # ---- 写入操作 ----
 
-    def write_all(self, data: str) -> Dict[str, int]:
+    def write_all(self, data: str) -> dict[str, int]:
         """向所有活跃设备写入数据.
 
         Args:
@@ -263,7 +261,7 @@ class DeviceManager:
         Returns:
             {device_id: bytes_written} 映射.
         """
-        results: Dict[str, int] = {}
+        results: dict[str, int] = {}
         with self._rlock:
             for device in self.get_active_devices():
                 try:
@@ -341,7 +339,5 @@ class DeviceManager:
     ) -> None:
         """通知所有回调."""
         for cb in self._callbacks:
-            try:
+            with contextlib.suppress(Exception):
                 cb(device, old_status, new_status)
-            except Exception:
-                pass  # 回调异常不影响主流程

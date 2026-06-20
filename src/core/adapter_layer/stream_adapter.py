@@ -12,9 +12,7 @@
 from __future__ import annotations
 
 import base64
-import codecs
 from enum import Enum
-from typing import Callable, Dict, List, Optional
 
 from src.core.adapter_layer.buffer_stack import BufferStack
 
@@ -42,7 +40,6 @@ class EscapeMode(Enum):
     URL = "url"
 
 
-@FunctionalInterface
 class CharTransformer:
     """字符变换器 — 可组合的字符变换 Pipeline."""
 
@@ -50,7 +47,7 @@ class CharTransformer:
         """变换单个字符."""
         return char
 
-    def __or__(self, other: "CharTransformer") -> "CharTransformer":
+    def __or__(self, other: CharTransformer) -> CharTransformer:
         """链式组合: t1 | t2."""
         return _ChainedTransformer(self, other)
 
@@ -66,18 +63,21 @@ class _ChainedTransformer(CharTransformer):
 
 class UppercaseTransformer(CharTransformer):
     """转大写变换器."""
+
     def transform(self, char: str) -> str:
         return char.upper()
 
 
 class LowercaseTransformer(CharTransformer):
     """转小写变换器."""
+
     def transform(self, char: str) -> str:
         return char.lower()
 
 
 class NoopTransformer(CharTransformer):
     """恒等变换器."""
+
     def transform(self, char: str) -> str:
         return char
 
@@ -185,7 +185,7 @@ class StreamAdapter:
 
     # ---- 转义 ----
 
-    _ESCAPE_MAP: Dict[EscapeMode, Dict[str, str]] = {
+    _ESCAPE_MAP: dict[EscapeMode, dict[str, str]] = {
         EscapeMode.HTML: {"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;"},
         EscapeMode.XML: {"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&apos;"},
         EscapeMode.JSON: {'"': '\\"', "\\": "\\\\", "\n": "\\n", "\r": "\\r", "\t": "\\t"},

@@ -5,10 +5,10 @@
 
 from __future__ import annotations
 
+import contextlib
 import socket
 import ssl
 import time
-from typing import Optional
 
 from src.core.device_layer.device_interface import (
     AbstractDevice,
@@ -53,7 +53,7 @@ class NetworkDevice(AbstractDevice):
         self._device_id: str = device_id or f"network-{host}:{port}"
         self._use_tls: bool = use_tls
         self._timeout: float = timeout
-        self._sock: Optional[socket.socket] = None
+        self._sock: socket.socket | None = None
         self._connected: bool = False
 
     # ---- 连接管理 ----
@@ -64,7 +64,7 @@ class NetworkDevice(AbstractDevice):
         Raises:
             ConnectionError: 连接失败.
         """
-        last_exc: Optional[Exception] = None
+        last_exc: Exception | None = None
         for attempt in range(1, self._MAX_RECONNECT_ATTEMPTS + 1):
             try:
                 raw_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -77,7 +77,7 @@ class NetworkDevice(AbstractDevice):
                 self._sock.connect((self._host, self._port))
                 self._connected = True
                 return
-            except (socket.error, ssl.SSLError) as exc:
+            except (OSError, ssl.SSLError) as exc:
                 last_exc = exc
                 time.sleep(min(attempt * 0.5, 2.0))
         raise ConnectionError(
@@ -88,10 +88,8 @@ class NetworkDevice(AbstractDevice):
     def disconnect(self) -> None:
         """断开连接."""
         if self._sock:
-            try:
+            with contextlib.suppress(OSError):
                 self._sock.shutdown(socket.SHUT_RDWR)
-            except OSError:
-                pass
             self._sock.close()
             self._sock = None
         self._connected = False
@@ -119,9 +117,7 @@ class NetworkDevice(AbstractDevice):
         self._metrics.bytes_written += byte_len
         self._metrics.write_count += 1
         self._metrics.last_write_timestamp = time.time()
-        self._metrics.avg_latency_ms = (
-            0.9 * self._metrics.avg_latency_ms + 0.1 * elapsed
-        )
+        self._metrics.avg_latency_ms = 0.9 * self._metrics.avg_latency_ms + 0.1 * elapsed
         return byte_len
 
     def flush(self) -> None:

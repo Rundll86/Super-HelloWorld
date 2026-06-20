@@ -16,9 +16,10 @@ import re
 import threading
 import time
 from collections import defaultdict
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any
 
 
 class ThreatLevel(Enum):
@@ -41,11 +42,11 @@ class SecurityEvent:
     message: str
     source: str
     timestamp: float = field(default_factory=time.time)
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    metadata: dict[str, Any] = field(default_factory=dict)
 
 
 # 安全检查处理函数类型
-SecurityHandler = Callable[[str, Dict[str, Any]], Optional[SecurityEvent]]
+SecurityHandler = Callable[[str, dict[str, Any]], SecurityEvent | None]
 
 
 class SecurityRule:
@@ -70,15 +71,15 @@ class SecurityRule:
         self._handler: SecurityHandler = handler
         self.level: ThreatLevel = level
         self.enabled: bool = enabled
-        self._next: Optional["SecurityRule"] = None
+        self._next: SecurityRule | None = None
         self._hit_count: int = 0
 
-    def set_next(self, rule: "SecurityRule") -> "SecurityRule":
+    def set_next(self, rule: SecurityRule) -> SecurityRule:
         """设置责任链下一环."""
         self._next = rule
         return rule
 
-    def check(self, data: str, context: Dict[str, Any]) -> Optional[SecurityEvent]:
+    def check(self, data: str, context: dict[str, Any]) -> SecurityEvent | None:
         """执行检查.
 
         Args:
@@ -119,7 +120,7 @@ class SecurityMonitor:
         ...     print(f"Threat detected: {event.message}")
     """
 
-    _instance: Optional["SecurityMonitor"] = None
+    _instance: SecurityMonitor | None = None
     _lock: threading.Lock = threading.Lock()
 
     # 高频检测窗口
@@ -132,16 +133,16 @@ class SecurityMonitor:
     def __init__(self) -> None:
         """私有构造 — 使用 get_instance()."""
         if not hasattr(self, "_initialized"):
-            self._chain: Optional[SecurityRule] = None
-            self._events: List[SecurityEvent] = []
+            self._chain: SecurityRule | None = None
+            self._events: list[SecurityEvent] = []
             self._max_events: int = 1000
-            self._call_times: defaultdict[str, List[float]] = defaultdict(list)
+            self._call_times: defaultdict[str, list[float]] = defaultdict(list)
             self._locked_sources: set[str] = set()
             self._build_chain()
             self._initialized: bool = True
 
     @classmethod
-    def get_instance(cls) -> "SecurityMonitor":
+    def get_instance(cls) -> SecurityMonitor:
         """获取 SecurityMonitor 单例."""
         if cls._instance is None:
             with cls._lock:
@@ -200,8 +201,8 @@ class SecurityMonitor:
     def scan(
         self,
         data: str,
-        context: Optional[Dict[str, Any]] = None,
-    ) -> Optional[SecurityEvent]:
+        context: dict[str, Any] | None = None,
+    ) -> SecurityEvent | None:
         """扫描数据，检测恶意行为.
 
         Args:
@@ -219,8 +220,7 @@ class SecurityMonitor:
         self._call_times[source].append(now)
         # 清理过期记录
         self._call_times[source] = [
-            t for t in self._call_times[source]
-            if now - t <= self._RATE_WINDOW_SECONDS
+            t for t in self._call_times[source] if now - t <= self._RATE_WINDOW_SECONDS
         ]
 
         ctx["_rate"] = len(self._call_times[source])
@@ -249,8 +249,8 @@ class SecurityMonitor:
     @staticmethod
     def _check_non_standard_charset(
         data: str,
-        context: Dict[str, Any],
-    ) -> Optional[SecurityEvent]:
+        context: dict[str, Any],
+    ) -> SecurityEvent | None:
         """检测非标准字符集 — 全角字符、不可见字符."""
         # 全角 Hello World
         fullwidth = "Ｈｅｌｌｏ　Ｗｏｒｌｄ"
@@ -278,8 +278,8 @@ class SecurityMonitor:
     def _check_high_frequency(
         cls,
         data: str,
-        context: Dict[str, Any],
-    ) -> Optional[SecurityEvent]:
+        context: dict[str, Any],
+    ) -> SecurityEvent | None:
         """检测高频打印 — >100次/秒."""
         rate = context.get("_rate", 0)
         if rate > cls._RATE_THRESHOLD:
@@ -299,13 +299,12 @@ class SecurityMonitor:
     def _check_unauthorized_device(
         self,
         data: str,
-        context: Dict[str, Any],
-    ) -> Optional[SecurityEvent]:
+        context: dict[str, Any],
+    ) -> SecurityEvent | None:
         """检测非授权设备."""
         device_id = context.get("device_id", "")
         if device_id and not any(
-            device_id.startswith(prefix)
-            for prefix in self._AUTHORIZED_DEVICE_PREFIXES
+            device_id.startswith(prefix) for prefix in self._AUTHORIZED_DEVICE_PREFIXES
         ):
             return SecurityEvent(
                 event_id=f"sec-{int(time.time() * 1000)}",
@@ -319,8 +318,8 @@ class SecurityMonitor:
     @staticmethod
     def _check_buffer_overflow_pattern(
         data: str,
-        context: Dict[str, Any],
-    ) -> Optional[SecurityEvent]:
+        context: dict[str, Any],
+    ) -> SecurityEvent | None:
         """检测缓冲区溢出模式 — 超长输入."""
         if len(data) > 10_000:  # 10KB 阈值
             return SecurityEvent(
@@ -336,8 +335,8 @@ class SecurityMonitor:
     @staticmethod
     def _check_encoding_injection(
         data: str,
-        context: Dict[str, Any],
-    ) -> Optional[SecurityEvent]:
+        context: dict[str, Any],
+    ) -> SecurityEvent | None:
         """检测编码注入 — 异常编码序列."""
         # 检测非法的代理对 (surrogate)
         if any(0xD800 <= ord(ch) <= 0xDFFF for ch in data):
@@ -362,8 +361,8 @@ class SecurityMonitor:
     @staticmethod
     def _check_silent_characters(
         data: str,
-        context: Dict[str, Any],
-    ) -> Optional[SecurityEvent]:
+        context: dict[str, Any],
+    ) -> SecurityEvent | None:
         """检测静默字符 — 控制字符混入."""
         # 检测非打印控制字符 (除了常见空白)
         if re.search(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]", data):
@@ -382,15 +381,15 @@ class SecurityMonitor:
         """记录安全事件."""
         self._events.append(event)
         if len(self._events) > self._max_events:
-            self._events = self._events[-self._max_events:]
+            self._events = self._events[-self._max_events :]
 
     # ---- 查询 ----
 
     def get_events(
         self,
-        level: Optional[ThreatLevel] = None,
+        level: ThreatLevel | None = None,
         limit: int = 50,
-    ) -> List[SecurityEvent]:
+    ) -> list[SecurityEvent]:
         """获取安全事件.
 
         Args:
@@ -405,7 +404,7 @@ class SecurityMonitor:
             events = [e for e in events if e.level == level]
         return events[-limit:]
 
-    def get_stats(self) -> Dict[str, Any]:
+    def get_stats(self) -> dict[str, Any]:
         """获取安全监控统计."""
         total = len(self._events)
         return {
@@ -415,10 +414,9 @@ class SecurityMonitor:
                 for level in ThreatLevel
             },
             "locked_sources": list(self._locked_sources),
-            "rule_hits": {
-                rule.name: rule.hit_count
-                for rule in self._iter_chain()
-            } if self._chain else {},
+            "rule_hits": {rule.name: rule.hit_count for rule in self._iter_chain()}
+            if self._chain
+            else {},
         }
 
     def _iter_chain(self) -> list[SecurityRule]:
@@ -427,7 +425,7 @@ class SecurityMonitor:
         current = self._chain
         while current is not None:
             rules.append(current)
-            current = current._next  # type: ignore[assignment]
+            current = current._next
         return rules
 
     def clear_events(self) -> None:

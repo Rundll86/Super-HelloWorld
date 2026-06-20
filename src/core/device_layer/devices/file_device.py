@@ -8,6 +8,7 @@ from __future__ import annotations
 import os
 import time
 from pathlib import Path
+from typing import IO
 
 from src.core.device_layer.device_interface import (
     AbstractDevice,
@@ -48,7 +49,7 @@ class FileDevice(AbstractDevice):
         self._mode: str = mode
         self._encoding: str = encoding
         self._auto_flush: bool = auto_flush
-        self._handle: object | None = None
+        self._handle: IO[str] | None = None
 
         # 确保父目录存在
         self._file_path.parent.mkdir(parents=True, exist_ok=True)
@@ -56,7 +57,7 @@ class FileDevice(AbstractDevice):
 
     def _open(self) -> None:
         """打开文件句柄."""
-        self._handle = open(
+        self._handle = open(  # noqa: SIM115
             self._file_path,
             self._mode,
             encoding=self._encoding,
@@ -75,32 +76,31 @@ class FileDevice(AbstractDevice):
         """
         if self._handle is None or getattr(self._handle, "closed", True):
             self._open()
+assert self._handle is not None  # nosec B101 — mypy type narrowing
 
         start = time.perf_counter()
         line = data + os.linesep
         byte_len = len(line.encode(self._encoding))
-        self._handle.write(line)  # type: ignore[union-attr]
+        self._handle.write(line)
         if self._auto_flush:
-            self._handle.flush()  # type: ignore[union-attr]
+            self._handle.flush()
 
         elapsed = (time.perf_counter() - start) * 1000
         self._metrics.bytes_written += byte_len
         self._metrics.write_count += 1
         self._metrics.last_write_timestamp = time.time()
-        self._metrics.avg_latency_ms = (
-            0.9 * self._metrics.avg_latency_ms + 0.1 * elapsed
-        )
+        self._metrics.avg_latency_ms = 0.9 * self._metrics.avg_latency_ms + 0.1 * elapsed
         return byte_len
 
     def flush(self) -> None:
         """刷新文件缓冲区."""
         if self._handle and not getattr(self._handle, "closed", True):
-            self._handle.flush()  # type: ignore[union-attr]
+            self._handle.flush()
 
     def close(self) -> None:
         """关闭文件句柄."""
         if self._handle and not getattr(self._handle, "closed", True):
-            self._handle.close()  # type: ignore[union-attr]
+            self._handle.close()
             self._handle = None
 
     @property

@@ -11,16 +11,17 @@
 from __future__ import annotations
 
 import logging
-import signal
 import threading
 import time
+from collections import OrderedDict
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from enum import Enum
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any
 
-from src.core.processing_layer.renderer import RenderResult, RenderStyle, Renderer
 from src.core.processing_layer.output_stream import OutputStream
+from src.core.processing_layer.renderer import Renderer, RenderStyle
 
 logger = logging.getLogger(__name__)
 
@@ -43,7 +44,7 @@ class ScheduledJob:
     cron_expression: str
     callback: Callable[[], Any]
     enabled: bool = True
-    last_run: Optional[float] = None
+    last_run: float | None = None
     run_count: int = 0
     error_count: int = 0
     max_retries: int = 3
@@ -56,7 +57,7 @@ class JobResult:
     job_id: str
     success: bool
     output: Any
-    error: Optional[str] = None
+    error: str | None = None
     duration_ms: float = 0.0
     timestamp: float = field(default_factory=time.time)
 
@@ -85,25 +86,25 @@ class CronScheduler:
 
     # 支持的 cron 字段范围
     _FIELD_RANGES = [
-        (0, 59),   # 分钟
-        (0, 23),   # 小时
-        (1, 31),   # 日
-        (1, 12),   # 月
-        (0, 6),    # 星期 (0=周日)
+        (0, 59),  # 分钟
+        (0, 23),  # 小时
+        (1, 31),  # 日
+        (1, 12),  # 月
+        (0, 6),  # 星期 (0=周日)
     ]
 
-    def __init__(self, tz: Optional[timezone] = None) -> None:
+    def __init__(self, tz: timezone | None = None) -> None:
         """初始化调度器.
 
         Args:
             tz: 时区.
         """
-        self._jobs: Dict[str, ScheduledJob] = OrderedDict()
+        self._jobs: dict[str, ScheduledJob] = OrderedDict()
         self._running: bool = False
-        self._thread: Optional[threading.Thread] = None
+        self._thread: threading.Thread | None = None
         self._lock: threading.RLock = threading.RLock()
         self._tz: timezone = tz or timezone.utc
-        self._results: List[JobResult] = []
+        self._results: list[JobResult] = []
         self._max_results: int = 1000
 
     # ---- 作业管理 ----
@@ -170,7 +171,7 @@ class CronScheduler:
             ScheduledJob 对象.
         """
 
-        def hello_world_task() -> Dict[str, Any]:
+        def hello_world_task() -> dict[str, Any]:
             result = renderer.render_hello_world(style=style)
             return output_stream.emit(result.output)
 
@@ -252,6 +253,7 @@ class CronScheduler:
             for field, part in zip(
                 ["minute", "hour", "day", "month", "weekday"],
                 cron_parts,
+                strict=True,
             )
         )
 
@@ -292,13 +294,13 @@ class CronScheduler:
                         exc,
                     )
                 else:
-                    time.sleep(min(2 ** attempt, 30))
+                    time.sleep(min(2**attempt, 30))
 
     def _record_result(self, result: JobResult) -> None:
         """记录执行结果."""
         self._results.append(result)
         if len(self._results) > self._max_results:
-            self._results = self._results[-self._max_results:]
+            self._results = self._results[-self._max_results :]
 
     # ---- Cron 解析 ----
 
@@ -328,10 +330,7 @@ class CronScheduler:
 
         # 处理逗号分隔的多个值
         if "," in pattern:
-            return any(
-                CronScheduler._match_single(value, p.strip())
-                for p in pattern.split(",")
-            )
+            return any(CronScheduler._match_single(value, p.strip()) for p in pattern.split(","))
 
         return CronScheduler._match_single(value, pattern)
 
@@ -366,20 +365,20 @@ class CronScheduler:
         """总错误次数."""
         return sum(j.error_count for j in self._jobs.values())
 
-    def list_jobs(self) -> List[ScheduledJob]:
+    def list_jobs(self) -> list[ScheduledJob]:
         """列出所有作业."""
         with self._lock:
             return list(self._jobs.values())
 
-    def get_results(self, limit: int = 10) -> List[JobResult]:
+    def get_results(self, limit: int = 10) -> list[JobResult]:
         """获取最近的执行结果."""
         return self._results[-limit:]
 
-    def get_job(self, job_id: str) -> Optional[ScheduledJob]:
+    def get_job(self, job_id: str) -> ScheduledJob | None:
         """获取指定作业."""
         return self._jobs.get(job_id)
 
-    def get_stats(self) -> Dict[str, Any]:
+    def get_stats(self) -> dict[str, Any]:
         """获取调度器统计."""
         return {
             "running": self._running,

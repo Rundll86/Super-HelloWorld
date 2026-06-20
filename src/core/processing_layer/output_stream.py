@@ -11,8 +11,9 @@ from __future__ import annotations
 
 import threading
 import time
+from collections.abc import Callable
 from enum import Enum
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any
 
 from src.core.adapter_layer.buffer_stack import BufferStack
 from src.core.adapter_layer.protocol_adapter import ProtocolAdapter
@@ -40,7 +41,7 @@ class OutputError(Exception):
 
 
 # 订阅者类型: (设备ID, 回调函数, 过滤器)
-Subscriber = tuple[str, Callable[[str], Any], Optional[Callable[[str], bool]]]
+Subscriber = tuple[str, Callable[[str], Any], Callable[[str], bool] | None]
 
 
 class OutputStream:
@@ -58,7 +59,7 @@ class OutputStream:
         self,
         buffer: BufferStack,
         protocol_adapter: ProtocolAdapter,
-        device_manager: Optional[DeviceManager] = None,
+        device_manager: DeviceManager | None = None,
         max_subscribers: int = 32,
     ) -> None:
         """初始化输出流.
@@ -73,7 +74,7 @@ class OutputStream:
         self._protocol_adapter: ProtocolAdapter = protocol_adapter
         self._device_manager: DeviceManager = device_manager or DeviceManager.get_instance()
         self._max_subscribers: int = max_subscribers
-        self._subscribers: List[Subscriber] = []
+        self._subscribers: list[Subscriber] = []
         self._state: StreamState = StreamState.IDLE
         self._lock: threading.RLock = threading.RLock()
         self._total_emitted: int = 0
@@ -107,7 +108,7 @@ class OutputStream:
         self,
         subscriber_id: str,
         callback: Callable[[str], Any],
-        filter_fn: Optional[Callable[[str], bool]] = None,
+        filter_fn: Callable[[str], bool] | None = None,
     ) -> None:
         """订阅自定义回调.
 
@@ -137,7 +138,7 @@ class OutputStream:
 
     # ---- 数据发射 ----
 
-    def emit(self, data: str) -> Dict[str, Any]:
+    def emit(self, data: str) -> dict[str, Any]:
         """向所有订阅者发射数据.
 
         错误隔离: 一个订阅者失败不影响其他订阅者。
@@ -149,7 +150,7 @@ class OutputStream:
             {subscriber_id: result} 映射.
         """
         self._state = StreamState.STREAMING
-        results: Dict[str, Any] = {}
+        results: dict[str, Any] = {}
 
         with self._lock:
             subscribers = list(self._subscribers)
@@ -169,11 +170,11 @@ class OutputStream:
         self._state = StreamState.IDLE
         return results
 
-    def emit_hello_world(self) -> Dict[str, Any]:
+    def emit_hello_world(self) -> dict[str, Any]:
         """发射 'Hello World'."""
         return self.emit("Hello World")
 
-    def emit_from_buffer(self) -> Dict[str, Any]:
+    def emit_from_buffer(self) -> dict[str, Any]:
         """从缓冲区读取数据并发射."""
         data = "".join(self._buffer.peek_all())
         if not data:
@@ -220,7 +221,7 @@ class OutputStream:
         return len(self._subscribers)
 
     @property
-    def stats(self) -> Dict[str, Any]:
+    def stats(self) -> dict[str, Any]:
         """流统计信息."""
         return {
             "state": self._state.value,

@@ -11,9 +11,9 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterator
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Iterator, List, Optional
 
 
 class CharacterSet(Enum):
@@ -47,7 +47,7 @@ class CharToken:
 class CharStream:
     """字符流 — 已解析的字符令牌序列."""
 
-    tokens: List[CharToken] = field(default_factory=list)
+    tokens: list[CharToken] = field(default_factory=list)
     source: str = ""
     encoding: CharacterSet = CharacterSet.UTF8
     _cursor: int = field(default=0, init=False)
@@ -58,13 +58,13 @@ class CharStream:
     def __len__(self) -> int:
         return len(self.tokens)
 
-    def peek(self) -> Optional[CharToken]:
+    def peek(self) -> CharToken | None:
         """查看当前字符但不移动游标."""
         if self._cursor < len(self.tokens):
             return self.tokens[self._cursor]
         return None
 
-    def advance(self) -> Optional[CharToken]:
+    def advance(self) -> CharToken | None:
         """读取当前字符并移动游标."""
         token = self.peek()
         if token is not None:
@@ -119,7 +119,7 @@ class CharacterReader:
     def read(
         self,
         source: str,
-        encoding: Optional[CharacterSet] = None,
+        encoding: CharacterSet | None = None,
     ) -> CharStream:
         """解析源字符串为 CharStream.
 
@@ -136,7 +136,7 @@ class CharacterReader:
         enc = encoding or self._default_encoding
         byte_width = self._ENCODING_BYTE_WIDTHS.get(enc, 1)
 
-        tokens: List[CharToken] = []
+        tokens: list[CharToken] = []
         byte_offset = 0
 
         for idx, ch in enumerate(source):
@@ -158,7 +158,7 @@ class CharacterReader:
 
     def read_hello_world(
         self,
-        encoding: Optional[CharacterSet] = None,
+        encoding: CharacterSet | None = None,
     ) -> CharStream:
         """便捷方法 — 直接读取 'Hello World'.
 

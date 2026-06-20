@@ -11,7 +11,6 @@ import time
 import uuid
 from dataclasses import dataclass
 from enum import Enum
-from typing import Any, Dict, Optional
 
 from src.core.device_layer.device_interface import (
     AbstractDevice,
@@ -38,7 +37,7 @@ class CloudLogEntry:
     timestamp: float
     trace_id: str
     level: str = "INFO"
-    labels: Dict[str, str] | None = None
+    labels: dict[str, str] | None = None
 
     def to_json(self) -> str:
         """序列化为 JSON."""

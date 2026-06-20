@@ -18,15 +18,13 @@ import json
 import os
 import tempfile
 import threading
-import time
-import uuid
-from pathlib import Path
 
 import pytest
 
 # ================================================================
 # 测试工具
 # ================================================================
+
 
 @pytest.fixture(autouse=True)
 def reset_singletons() -> None:
@@ -42,11 +40,13 @@ def reset_singletons() -> None:
 # 设备层测试
 # ================================================================
 
+
 class TestDeviceInterface:
     """设备抽象接口测试."""
 
     def test_device_type_enum(self) -> None:
         from src.core.device_layer.device_interface import DeviceType
+
         assert DeviceType.CONSOLE is not None
         assert DeviceType.FILE is not None
         assert DeviceType.NETWORK is not None
@@ -54,16 +54,20 @@ class TestDeviceInterface:
 
     def test_device_status_enum(self) -> None:
         from src.core.device_layer.device_interface import DeviceStatus
+
         assert DeviceStatus.UNREGISTERED is not None
         assert DeviceStatus.ACTIVE is not None
         assert DeviceStatus.CLOSED is not None
 
     def test_device_capability_frozen(self) -> None:
+        from dataclasses import FrozenInstanceError
+
         from src.core.device_layer.device_interface import DeviceCapability
+
         cap = DeviceCapability(supports_color=True, supports_unicode=True)
         assert cap.supports_color is True
-        with pytest.raises(Exception):
-            cap.supports_color = False  # type: ignore[misc]
+        with pytest.raises(FrozenInstanceError):
+            cap.supports_color = False
 
 
 class TestCharacterReader:
@@ -147,8 +151,8 @@ class TestDeviceManager:
         assert dm1 is dm2
 
     def test_create_and_register(self) -> None:
-        from src.core.device_layer.device_manager import DeviceManager, DeviceType
         from src.core.device_layer.device_interface import DeviceStatus
+        from src.core.device_layer.device_manager import DeviceManager, DeviceType
 
         dm = DeviceManager.get_instance()
         device = dm.create_device(DeviceType.CONSOLE, device_id="test-console")
@@ -193,9 +197,9 @@ class TestDeviceManager:
 
     def test_duplicate_register_raises(self) -> None:
         from src.core.device_layer.device_manager import (
+            DeviceAlreadyRegisteredError,
             DeviceManager,
             DeviceType,
-            DeviceAlreadyRegisteredError,
         )
 
         dm = DeviceManager.get_instance()
@@ -248,7 +252,7 @@ class TestFileDevice:
             device.close()
 
             assert byte_len > 0
-            with open(temp_path, "r") as f:
+            with open(temp_path) as f:
                 content = f.read()
             assert "Hello World" in content
         finally:
@@ -292,11 +296,12 @@ class TestCloudDevice:
 # 转接层测试
 # ================================================================
 
+
 class TestBufferStack:
     """缓冲区栈测试."""
 
     def test_push_pop_lifo(self) -> None:
-        from src.core.adapter_layer.buffer_stack import BufferStack, BufferMode
+        from src.core.adapter_layer.buffer_stack import BufferMode, BufferStack
 
         buf = BufferStack(max_size=100, mode=BufferMode.LIFO)
         buf.push("A")
@@ -307,7 +312,7 @@ class TestBufferStack:
         assert buf.pop() == "A"
 
     def test_push_pop_fifo(self) -> None:
-        from src.core.adapter_layer.buffer_stack import BufferStack, BufferMode
+        from src.core.adapter_layer.buffer_stack import BufferMode, BufferStack
 
         buf = BufferStack(max_size=100, mode=BufferMode.FIFO)
         buf.push("A")
@@ -326,8 +331,8 @@ class TestBufferStack:
 
     def test_overflow_raises(self) -> None:
         from src.core.adapter_layer.buffer_stack import (
-            BufferStack,
             BufferOverflowError,
+            BufferStack,
         )
 
         buf = BufferStack(max_size=3)
@@ -346,7 +351,7 @@ class TestBufferStack:
             buf.pop()
 
     def test_peek(self) -> None:
-        from src.core.adapter_layer.buffer_stack import BufferStack, BufferMode
+        from src.core.adapter_layer.buffer_stack import BufferMode, BufferStack
 
         buf = BufferStack(max_size=10, mode=BufferMode.FIFO)
         buf.push_all(["X", "Y", "Z"])
@@ -379,7 +384,7 @@ class TestBufferStack:
         assert buf.utilization == 0.3
 
     def test_mode_switch(self) -> None:
-        from src.core.adapter_layer.buffer_stack import BufferStack, BufferMode
+        from src.core.adapter_layer.buffer_stack import BufferMode, BufferStack
 
         buf = BufferStack(mode=BufferMode.FIFO)
         buf.push_all(["1", "2", "3"])
@@ -402,7 +407,7 @@ class TestStreamAdapter:
     """流适配器测试."""
 
     def test_transcode_utf8_to_ascii(self) -> None:
-        from src.core.adapter_layer.stream_adapter import StreamAdapter, Encoding
+        from src.core.adapter_layer.stream_adapter import Encoding, StreamAdapter
 
         adapter = StreamAdapter()
         result = adapter.transcode("Hello", Encoding.UTF8, Encoding.ASCII)
@@ -425,8 +430,8 @@ class TestStreamAdapter:
 
     def test_html_escape(self) -> None:
         from src.core.adapter_layer.stream_adapter import (
-            StreamAdapter,
             EscapeMode,
+            StreamAdapter,
         )
 
         adapter = StreamAdapter()
@@ -435,8 +440,8 @@ class TestStreamAdapter:
 
     def test_json_escape(self) -> None:
         from src.core.adapter_layer.stream_adapter import (
-            StreamAdapter,
             EscapeMode,
+            StreamAdapter,
         )
 
         adapter = StreamAdapter()
@@ -490,6 +495,7 @@ class TestProtocolAdapter:
 # 处理层测试
 # ================================================================
 
+
 class TestRenderer:
     """渲染器测试."""
 
@@ -541,12 +547,14 @@ class TestRenderer:
         assert result.output == "Hello World"
 
     def test_render_result_frozen(self) -> None:
+        from dataclasses import FrozenInstanceError
+
         from src.core.processing_layer.renderer import Renderer
 
         renderer = Renderer()
         result = renderer.render("x")
-        with pytest.raises(Exception):
-            result.output = "y"  # type: ignore[misc]
+        with pytest.raises(FrozenInstanceError):
+            result.output = "y"
 
     def test_compose(self) -> None:
         from src.core.processing_layer.renderer import Renderer, RenderStyle
@@ -595,6 +603,7 @@ class TestOutputStream:
         def make_cb(name: str):
             def cb(data: str) -> None:
                 results[name] = data
+
             return cb
 
         stream.subscribe("a", make_cb("a"))
@@ -805,7 +814,7 @@ class TestIRTranspiler:
         transpiler = IRTranspiler()
         results = transpiler.transpile_all()
         assert len(results) >= 5  # at least JS, Java, C++, Rust, WASM
-        for lang, output in results.items():
+        for _lang, output in results.items():
             assert output.source_code != ""
 
     def test_export_ir_json(self) -> None:
@@ -834,6 +843,7 @@ class TestIRTranspiler:
 # ================================================================
 # 云服务层测试
 # ================================================================
+
 
 class TestLogUploader:
     """日志上传器测试."""
@@ -881,17 +891,18 @@ class TestLogUploader:
 # 集成测试
 # ================================================================
 
+
 class TestIntegration:
     """端到端集成测试."""
 
     def test_full_pipeline(self) -> None:
         """完整打印流水线: 字符读取 → 缓冲区 → 渲染 → 输出."""
-        from src.core.device_layer.character_reader import CharacterReader
-        from src.core.device_layer.device_manager import DeviceManager, DeviceType
         from src.core.adapter_layer.buffer_stack import BufferStack
         from src.core.adapter_layer.protocol_adapter import ProtocolAdapter
-        from src.core.processing_layer.renderer import Renderer
+        from src.core.device_layer.character_reader import CharacterReader
+        from src.core.device_layer.device_manager import DeviceManager, DeviceType
         from src.core.processing_layer.output_stream import OutputStream
+        from src.core.processing_layer.renderer import Renderer
         from src.core.processing_layer.security_monitor import SecurityMonitor
 
         # 设备层
@@ -955,6 +966,7 @@ class TestIntegration:
 # CLI 测试
 # ================================================================
 
+
 class TestCLI:
     """CLI 命令行测试."""
 
@@ -1011,6 +1023,7 @@ class TestCLI:
 # 性能 & 并发测试
 # ================================================================
 
+
 class TestConcurrency:
     """并发安全测试."""
 
@@ -1027,10 +1040,7 @@ class TestConcurrency:
                 except Exception as exc:
                     errors.append(exc)
 
-        threads = [
-            threading.Thread(target=worker, args=(i * 100,))
-            for i in range(10)
-        ]
+        threads = [threading.Thread(target=worker, args=(i * 100,)) for i in range(10)]
         for t in threads:
             t.start()
         for t in threads:

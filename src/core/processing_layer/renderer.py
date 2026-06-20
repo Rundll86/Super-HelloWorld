@@ -14,7 +14,7 @@ import json
 import time
 from dataclasses import dataclass
 from enum import Enum
-from typing import Any, Dict, Optional
+from typing import Any
 
 
 class RenderStyle(Enum):
@@ -50,7 +50,7 @@ class RenderResult:
     output: str
     style: RenderStyle
     rendered_at: float
-    metadata: Dict[str, Any]
+    metadata: dict[str, Any]
 
 
 class Renderer:
@@ -79,7 +79,7 @@ class Renderer:
             color: 默认颜色 (仅 COLORED 风格).
         """
         self._default_style: RenderStyle = default_style
-        self._default_color: ANSIColor = color or ANSIColor.GREEN
+        self._default_color: ANSIColor = color if color is not None else ANSIColor.GREEN  # type: ignore[assignment]
         self._render_count: int = 0
 
     # ---- 渲染方法 ----
@@ -87,8 +87,8 @@ class Renderer:
     def render(
         self,
         message: str,
-        style: Optional[RenderStyle] = None,
-        color: Optional[ANSIColor] = None,
+        style: RenderStyle | None = None,
+        color: ANSIColor | None = None,
         **kwargs: Any,
     ) -> RenderResult:
         """渲染消息.
@@ -127,7 +127,7 @@ class Renderer:
 
     def render_hello_world(
         self,
-        style: Optional[RenderStyle] = None,
+        style: RenderStyle | None = None,
         **kwargs: Any,
     ) -> RenderResult:
         """渲染 Hello World.
